@@ -10,20 +10,33 @@ const modal = {
   }
 }
 
-const transaction = [
-  { id: 1, description: 'Luz', amount: 45000, date: '11/02/22' },
-  { id: 2, description: 'Luz', amount: 95000, date: '11/02/22' },
-  { id: 3, description: 'Luz', amount: -4000, date: '11/02/22' }
-]
+// salvando as informaçoes\transacoes no localestorage do navegador
+const storage = {
+  get() {
+    //transformando um STRING em uma ARRAY
+    return JSON.parse(localStorage.getItem("dados")) || []
+  },
+
+  set(transactions){
+    // Transformando em uma uma STRING uma ARRAY
+    localStorage.setItem("dados:", JSON.stringify(transactions))
+  }
+}
 
 //var para calcular entradas/saidas/total de transaçoesv
 const transactionMovimentation = {
   //agrupando a var transactions
-  all: transaction,
-
+  all: storage.get(),
   // Adicionando novas transacoes
   add(transaction) {
     transactionMovimentation.all.push(transaction)
+
+    app.reload()
+  },
+
+  //removendo a transação
+  remove(index) {
+    transactionMovimentation.all.splice(index, 1)
 
     app.reload()
   },
@@ -69,13 +82,14 @@ const dom = {
     //criando um tr
     const tr = document.createElement('tr')
     //adicionando elementos ao tr
-    tr.innerHTML = dom.innerHtmlTransaction(transaction)
+    tr.innerHTML = dom.innerHtmlTransaction(transaction, index)
+    tr.dataset.index = index
     // preenchendo o html
     dom.transactionContainer.appendChild(tr)
   },
 
   // preenchendo com elementos
-  innerHtmlTransaction(transaction) {
+  innerHtmlTransaction(transaction, index) {
     //verificando se o valor é positivo ou negativo (caso seja positivo ele vai mudar a classe)
     const CSSclass = transaction.amount > 0 ? 'income' : 'expense'
 
@@ -85,7 +99,7 @@ const dom = {
     <td class="description">${transaction.description}</td>
     <td class=${CSSclass}>${amount}</td>
     <td class="date">${transaction.date}</td>
-    <td><img src="assets/minus.svg" alt="remover transação"></td>
+    <td><img onclick="transactionMovimentation.remove(${index})" src="assets/minus.svg" alt="remover transação"></td>
   </tr>`
 
     return html
@@ -105,13 +119,26 @@ const dom = {
   },
 
   //metodo para limpar todos os elementos da tabela
-  clearTransaction () {
-    dom.transactionContainer.innerHTML = ""
+  clearTransaction() {
+    dom.transactionContainer.innerHTML = ''
   }
 }
 
 // trecho de conversão e formatação de moedas
 const utils = {
+  formatAmount(value) {
+    value = Number(value) * 100
+
+    return value
+  },
+
+  formatDate(date) {
+    //formatando a data para a versao que utilizamos no BR
+    const splittedDate = date.split('-')
+
+    return `${splittedDate[2]}/ ${splittedDate[1]}/ ${splittedDate[0]}`
+  },
+
   formatCurrency(value) {
     // convertando o valor de entrada em um numero, e validando
     const signal = Number(value) < 0 ? '-' : ''
@@ -131,14 +158,87 @@ const utils = {
   }
 }
 
+const form = {
+  // pegando os elementos do html
+  description: document.querySelector('input#description'),
+  amount: document.querySelector('input#amount'),
+  date: document.querySelector('input#date'),
+
+  getValues() {
+    return {
+      description: form.description.value,
+      amount: form.amount.value,
+      date: form.date.value
+    }
+  },
+
+  // validando os dados do formulario
+  validadeFields() {
+    // pegando os elementos da array form
+    const { description, amount, date } = form.getValues()
+
+    // verificando se o valor é vazio
+    if (
+      description.trim() === '' ||
+      amount.trim() === '' ||
+      date.trim() === ''
+    ) {
+      /// retornando um erro caso um dos campos esteja vazio
+      throw new Error('Preencha todos os campos.')
+    }
+  },
+
+  // formatando os valores do formulario
+  formatValues() {
+    let { description, amount, date } = form.getValues()
+
+    amount = utils.formatAmount(amount)
+
+    date = utils.formatDate(date)
+
+    return { description, amount, date }
+  },
+
+  // salvando
+  saveTransaction(transaction) {
+    transactionMovimentation.add(transaction)
+  },
+
+  // limpando os dados
+  clearFields() {
+    form.description.value = ''
+    form.amount.value = ''
+    form.date.value = ''
+  },
+  //
+
+  submit(event) {
+    // trecho para tirar o comportamento padrao do form
+    event.preventDefault()
+
+    // capturando e tratando o erro
+    try {
+      form.validadeFields()
+      const transaction = form.formatValues()
+      form.saveTransaction(transaction)
+      form.clearFields()
+      modal.close()
+    } catch (error) {
+      alert(error.message)
+    }
+  }
+}
+
 const app = {
   init() {
     // foreach "PARA CADA" transação, sera adicionada um nova
-    transactionMovimentation.all.forEach(transaction => {
-      dom.addTransaction(transaction)
+    transactionMovimentation.all.forEach((transaction, index) => {
+      dom.addTransaction(transaction, index)
     })
 
     dom.updateBalance()
+
+    storage.set(transactionMovimentation.all)
   },
 
   reload() {
@@ -149,10 +249,3 @@ const app = {
 
 // PARTE QUE COMEÇA A EXECUTAR O CÓDIGO
 app.init()
-
-transactionMovimentation.add({
-  id: 5,
-  description: 'Sla',
-  amount: 942,
-  date: '12//02/2022'
-})
